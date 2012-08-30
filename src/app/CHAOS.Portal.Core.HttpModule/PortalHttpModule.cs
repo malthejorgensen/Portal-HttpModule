@@ -221,13 +221,15 @@ namespace CHAOS.Portal.Core.HttpModule
             var split     = request.Url.AbsolutePath.Substring( request.ApplicationPath.Length ).Split('/');
             var extension = split[ split.Length - 2 ];
             var action    = split[ split.Length - 1 ];
-
+	        
             switch( request.HttpMethod )
             {
                 case "DELETE":
                 case "PUT":
                 case "POST":
-                    return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.Form ) ), new PortalResponse() );
+					var files = ( from HttpPostedFile file in request.Files select new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength ) ).ToList();
+
+		            return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.Form ), files ), new PortalResponse() );
                 case "GET":
                     return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.QueryString ) ), new PortalResponse() );
                 default:
@@ -243,9 +245,8 @@ namespace CHAOS.Portal.Core.HttpModule
         private IDictionary<string, string> ConvertToIDictionary( NameValueCollection nameValueCollection )
         {
             var parameters = new Dictionary<string, string>();
-           
-            // TODO: Put routing logic into seperate classes
-            for( var i = 0; i < nameValueCollection.Keys.Count; i++ )
+            
+			for( var i = 0; i < nameValueCollection.Keys.Count; i++ )
             {
                 parameters.Add( nameValueCollection.Keys[i], nameValueCollection[i]);
             }
