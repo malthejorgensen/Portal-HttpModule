@@ -18,10 +18,15 @@ using CHAOS.Portal.Core.Extension;
 namespace CHAOS.Portal.Core.HttpModule
 {
     public class PortalHttpModule : IHttpModule
-    {
-        #region Properties
+	{
+		#region Delegates
 
-        protected PortalApplication PortalApplication { get; set; }
+		private delegate void AssemblyLoaderDelegate( PortalApplication application, object obj, PrettyNameAttribute attribute );
+
+		#endregion
+		#region Properties
+
+		protected PortalApplication PortalApplication { get; set; }
 
         #endregion
         #region IHttpModule Members
@@ -40,24 +45,39 @@ namespace CHAOS.Portal.Core.HttpModule
                 {
                     if( context.Application["PortalApplication"] == null )
                     {
-                        var application = new PortalApplication( new Cache.Membase.Membase(), new SolrCoreManager() );
+						PortalApplication = new PortalApplication(new Cache.Membase.Membase(), new SolrCoreManager());
+	                    
+						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
-                        context.Application["PortalApplication"] = application;
+						LoadTypesFromAssembliesAt<IModule>( string.Format( "{0}\\Modules", PortalApplication.ServiceDirectory ), PortalApplication, LoadModules);
+						LoadTypesFromAssembliesAt<IExtension>( string.Format( "{0}\\Extensions", PortalApplication.ServiceDirectory ), PortalApplication, LoadExtensions );
 
-                        LoadExtensions( application );
-                        LoadModules( application );
+						context.Application["PortalApplication"] = PortalApplication;
                     }
                 }
-
-				AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
             }
 
-            PortalApplication = (PortalApplication) context.Application["PortalApplication"];
-
+			PortalApplication = (PortalApplication)context.Application["PortalApplication"];
             context.BeginRequest += ContextBeginRequest;
         }
+		
+	    private static void LoadTypesFromAssembliesAt<T>( string path, PortalApplication application, AssemblyLoaderDelegate loadAssembly )
+		{
+			foreach (var assembly in System.IO.Directory.GetFiles( path, "*.dll" ).Select(Assembly.LoadFile))
+			{
+				application.LoadedAssemblies.Add(assembly.FullName, assembly);
 
-		Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
+				foreach (var type in GetClassesOf<T>(from: assembly))
+				{
+					var attribute = type.GetCustomAttribute<PrettyNameAttribute>(true);
+					var obj       = assembly.CreateInstance( type.FullName );
+
+					loadAssembly(application, obj, attribute );
+				}
+			}
+		}
+
+	    Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
 		{
 			if( PortalApplication.LoadedAssemblies.ContainsKey( args.Name ) )
 				return PortalApplication.LoadedAssemblies[ args.Name ];
@@ -65,86 +85,60 @@ namespace CHAOS.Portal.Core.HttpModule
 			throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
 		}
 
-    	private void LoadModules( PortalApplication application )
-        {
-            using( var db = new PortalEntities() )
+    	private static void LoadModules( PortalApplication application, object obj, PrettyNameAttribute prettyNameAttribute )
+    	{
+    		var attribute = (ModuleAttribute) prettyNameAttribute;
+    		var module    = (IModule)obj;
+
+            // If an attribute is present on the class, load config from database
+            if( attribute != null )
             {
-                // Load modules
-                foreach( string file in System.IO.Directory.GetFiles( string.Format( "{0}\\Modules", application.ServiceDirectory ), "*.dll" ) )
+				using (var db = new PortalEntities())
+				{
+					var moduleConfig = db.Module_Get(null, attribute.ModuleConfigName).FirstOrDefault();
+
+					if (moduleConfig == null)
+						throw new ModuleConfigurationMissingException(string.Format("The module requires a configuration, but none was found with the name: {0}", attribute.ModuleConfigName));
+
+					module.Initialize(moduleConfig.Configuration);
+
+					var indexSettings = db.IndexSettings_Get((int?)moduleConfig.ID).FirstOrDefault();
+
+					if (indexSettings != null)
+					{
+						foreach (var url in XElement.Parse(indexSettings.Settings).Elements("Core").Select(core => core.Attribute("url").Value))
+						{
+							application.IndexManager.AddIndex(module.GetType().FullName, new SolrCoreConnection(url));
+						}
+					}
+				}
+            }
+
+            // Index modules by the Extensions they subscribe to
+            foreach( var method in module.GetType().GetMethods() )
+            {
+                foreach( Datatype datatypeAttribute in method.GetCustomAttributes( typeof( Datatype ), true ) )
                 {
-                    var assembly = Assembly.LoadFile( file );
+                    if( !application.LoadedModules.ContainsKey( datatypeAttribute.ExtensionName ) )
+                        application.LoadedModules.Add( datatypeAttribute.ExtensionName, new Collection<IModule>() );
 
-					application.LoadedAssemblies.Add(assembly.FullName, assembly);
-
-                    // Get the types and identify the IModules
-                    foreach( var type in assembly.GetTypes() )
-                    {
-                        if( type.IsAbstract )
-                            continue;
-
-                        if( !type.Implements<IModule>() )
-                            continue;
-                    
-                        var attribute = type.GetCustomAttribute<ModuleAttribute>( true );
-                        var module    = (IModule) assembly.CreateInstance( type.FullName );
-
-                        // If an attribute is present on the class, load config from database
-                        if( attribute != null )
-                        {
-                            var moduleConfig = db.Module_Get( null, attribute.ModuleConfigName ).FirstOrDefault();
-
-                            if( moduleConfig == null )
-                                throw new ModuleConfigurationMissingException( string.Format( "The module requires a configuration, but none was found with the name: {0}", attribute.ModuleConfigName ) );
-
-                            module.Initialize( moduleConfig.Configuration );
-
-                            var indexSettings = db.IndexSettings_Get( (int?) moduleConfig.ID ).FirstOrDefault();
-                    
-                            if( indexSettings != null )
-                            {
-                                foreach( var url in XElement.Parse(indexSettings.Settings).Elements("Core").Select( core => core.Attribute( "url" ).Value ) )
-	                            {
-                                    application.IndexManager.AddIndex( module.GetType().FullName, new SolrCoreConnection( url ) );
-	                            }    
-                            }
-                        }
-
-                        // Index modules by the Extensions they subscribe to
-                        foreach( var method in module.GetType().GetMethods() )
-                        {
-                            foreach( Datatype datatypeAttribute in method.GetCustomAttributes( typeof( Datatype ), true ) )
-                            {
-                                if( !application.LoadedModules.ContainsKey( datatypeAttribute.ExtensionName ) )
-                                    application.LoadedModules.Add( datatypeAttribute.ExtensionName, new Collection<IModule>() );
-
-                                if( !application.LoadedModules[ datatypeAttribute.ExtensionName ].Contains( module ) )
-                                    application.LoadedModules[ datatypeAttribute.ExtensionName ].Add( module );
-                            }
-                        }
-                    }
+                    if( !application.LoadedModules[ datatypeAttribute.ExtensionName ].Contains( module ) )
+                        application.LoadedModules[ datatypeAttribute.ExtensionName ].Add( module );
                 }
             }
         }
 
-        private void LoadExtensions( PortalApplication application )
+	    private static IEnumerable<Type> GetClassesOf<T>(Assembly from)
+	    {
+			return from.GetTypes().Where(type => type.IsClass && type.Implements<T>());
+	    }
+
+	    private static void LoadExtensions( PortalApplication application, object obj, PrettyNameAttribute prettyNameAttribute )
         {
-            foreach( string file in System.IO.Directory.GetFiles( string.Format( "{0}\\Extensions", application.ServiceDirectory ), "*.dll" ) )
-            {
-                var assembly = Assembly.LoadFile( file );
+			var attribute = (ExtensionAttribute) prettyNameAttribute;
+    		var extension = (IExtension)obj;
 
-				application.LoadedAssemblies.Add( assembly.FullName, assembly );
-
-                foreach( var type in assembly.GetTypes() )
-                {
-                    if( !type.Implements<IExtension>() )
-                        continue;
-                    
-                    var attribute = type.GetCustomAttribute<ExtensionAttribute>( true );
-
-                    application.LoadedExtensions.Add( attribute == null ? type.Name : attribute.ExtensionName,
-                                                     (IExtension) assembly.CreateInstance( type.FullName ) );
-                }
-            }
+			application.LoadedExtensions.Add(attribute == null ? extension.GetType().Name : attribute.ExtensionName, extension);
         }
 
         #endregion
