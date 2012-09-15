@@ -221,9 +221,9 @@ namespace CHAOS.Portal.Core.HttpModule
                 case "DELETE":
                 case "PUT":
                 case "POST":
-					var files = ( from HttpPostedFile file in request.Files select new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength ) ).ToList();
+                    var files = request.Files.AllKeys.Select(key => request.Files[key]).Select(file => new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength)).ToList();
 
-		            return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.Form ), files ), new PortalResponse() );
+                    return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.Form ), files ), new PortalResponse() );
                 case "GET":
                     return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.QueryString ) ), new PortalResponse() );
                 default:
