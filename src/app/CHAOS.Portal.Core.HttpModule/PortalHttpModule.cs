@@ -146,26 +146,60 @@ namespace CHAOS.Portal.Core.HttpModule
 
         private void ContextBeginRequest( object sender, EventArgs e )
         {
+            var sw = new System.Diagnostics.Stopwatch();
+            sw.Start();
+
             using( var application = (HttpApplication) sender )
             {
                 if( IsOnIgnoreList( application.Request.Url.AbsolutePath ) )
                     return; // TODO: 404
 
                 var callContext = CreateCallContext( application.Request );
-
+                callContext.Log.Debug(string.Format("{0} CallContext Created",sw.Elapsed));
                 PortalApplication.ProcessRequest(callContext);
-
+                callContext.Log.Debug(string.Format("{0} Processed", sw.Elapsed));
                 application.Response.ContentEncoding = System.Text.Encoding.Unicode;
                 application.Response.ContentType     = GetContentType( callContext );
                 application.Response.Charset         = "utf-16";
 
+                callContext.Log.Debug(string.Format("{0} Setting Compression", sw.Elapsed));
+                SetCompression(application);
+                callContext.Log.Debug(string.Format("{0} Creating Response", sw.Elapsed));
+
                 using( var inputStream  = callContext.GetResponseStream() )
                 using( var outputStream = application.Response.OutputStream )
                 {
+                    callContext.Log.Debug(string.Format("{0} Sending output", sw.Elapsed));
                     inputStream.CopyTo( outputStream );
+                    callContext.Log.Debug(string.Format("{0} Output sent", sw.Elapsed));
                 }
 
+                callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed));
+                callContext.Log.Commit((uint) sw.ElapsedMilliseconds);
                 application.Response.End();
+            }
+        }
+
+        private static void SetCompression(HttpApplication application)
+        {
+            var acceptEncoding = HttpContext.Current.Request.Headers["Accept-Encoding"];
+
+            if (!string.IsNullOrEmpty(acceptEncoding) && (acceptEncoding.Contains("gzip") || acceptEncoding.Contains("deflate")))
+            {
+                if (acceptEncoding.Contains("gzip"))
+                {
+                    application.Response.AppendHeader("Content-Encoding", "gzip");
+                    application.Response.Filter = new System.IO.Compression.GZipStream(application.Response.Filter,
+                                                                                       System.IO.Compression.CompressionMode.
+                                                                                           Compress);
+                }
+                else
+                {
+                    application.Response.AppendHeader("Content-Encoding", "deflate");
+                    application.Response.Filter = new System.IO.Compression.DeflateStream(application.Response.Filter,
+                                                                                          System.IO.Compression.CompressionMode.
+                                                                                              Compress);
+                }
             }
         }
 
@@ -221,11 +255,30 @@ namespace CHAOS.Portal.Core.HttpModule
                 case "DELETE":
                 case "PUT":
                 case "POST":
-                    var files = request.Files.AllKeys.Select(key => request.Files[key]).Select(file => new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength)).ToList();
+                    {
+                        var files = request.Files.AllKeys.Select(key => request.Files[key]).Select(file => new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength)).ToList();
+                        var callContext = new CallContext(PortalApplication, new PortalRequest(extension, action, ConvertToIDictionary(request.Form), files), new PortalResponse());
 
-                    return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.Form ), files ), new PortalResponse() );
+                        callContext.Log.Debug(request.ContentEncoding.EncodingName);
+                        foreach (var parameter in callContext.PortalRequest.Parameters)
+                        {
+                            callContext.Log.Debug(parameter.Value);
+                        }
+
+                        return callContext;
+                    }
                 case "GET":
-                    return new CallContext( PortalApplication, new PortalRequest( extension, action, ConvertToIDictionary( request.QueryString ) ), new PortalResponse() );
+                    {
+                        var callContext = new CallContext(PortalApplication, new PortalRequest(extension, action, ConvertToIDictionary(request.QueryString)), new PortalResponse());
+
+                        callContext.Log.Debug(request.ContentEncoding.EncodingName);
+                        foreach (var parameter in callContext.PortalRequest.Parameters)
+                        {
+                            callContext.Log.Debug(parameter.Value);
+                        }
+
+                        return callContext;
+                    }
                 default:
                     throw new UnhandledException( "Unknown Http Method" );
             }
@@ -236,7 +289,7 @@ namespace CHAOS.Portal.Core.HttpModule
         /// </summary>
         /// <param name="nameValueCollection"></param>
         /// <returns></returns>
-        private IDictionary<string, string> ConvertToIDictionary( NameValueCollection nameValueCollection )
+        private static IDictionary<string, string> ConvertToIDictionary( NameValueCollection nameValueCollection )
         {
             var parameters = new Dictionary<string, string>();
             
