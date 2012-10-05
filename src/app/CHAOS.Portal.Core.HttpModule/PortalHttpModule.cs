@@ -161,6 +161,7 @@ namespace CHAOS.Portal.Core.HttpModule
                 application.Response.ContentEncoding = System.Text.Encoding.Unicode;
                 application.Response.ContentType     = GetContentType( callContext );
                 application.Response.Charset         = "utf-16";
+                application.Response.CacheControl    = "no-cache";
 
                 callContext.Log.Debug(string.Format("{0} Setting Compression", sw.Elapsed));
                 SetCompression(application);
@@ -189,16 +190,12 @@ namespace CHAOS.Portal.Core.HttpModule
                 if (acceptEncoding.Contains("gzip"))
                 {
                     application.Response.AppendHeader("Content-Encoding", "gzip");
-                    application.Response.Filter = new System.IO.Compression.GZipStream(application.Response.Filter,
-                                                                                       System.IO.Compression.CompressionMode.
-                                                                                           Compress);
+                    application.Response.Filter = new System.IO.Compression.GZipStream(application.Response.Filter, System.IO.Compression.CompressionMode.Compress);
                 }
                 else
                 {
                     application.Response.AppendHeader("Content-Encoding", "deflate");
-                    application.Response.Filter = new System.IO.Compression.DeflateStream(application.Response.Filter,
-                                                                                          System.IO.Compression.CompressionMode.
-                                                                                              Compress);
+                    application.Response.Filter = new System.IO.Compression.DeflateStream(application.Response.Filter, System.IO.Compression.CompressionMode.Compress);
                 }
             }
         }
