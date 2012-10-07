@@ -158,9 +158,9 @@ namespace CHAOS.Portal.Core.HttpModule
                 callContext.Log.Debug(string.Format("{0} CallContext Created",sw.Elapsed));
                 PortalApplication.ProcessRequest(callContext);
                 callContext.Log.Debug(string.Format("{0} Processed", sw.Elapsed));
-                application.Response.ContentEncoding = System.Text.Encoding.Unicode;
+                application.Response.ContentEncoding = System.Text.Encoding.UTF8;
                 application.Response.ContentType     = GetContentType( callContext );
-                application.Response.Charset         = "utf-16";
+                application.Response.Charset         = "utf-8";
                 application.Response.CacheControl    = "no-cache";
 
                 callContext.Log.Debug(string.Format("{0} Setting Compression", sw.Elapsed));
