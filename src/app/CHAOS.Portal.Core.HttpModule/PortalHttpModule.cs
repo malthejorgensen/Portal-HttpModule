@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Web;
@@ -146,7 +147,7 @@ namespace CHAOS.Portal.Core.HttpModule
 
         private void ContextBeginRequest( object sender, EventArgs e )
         {
-            var sw = new System.Diagnostics.Stopwatch();
+            var sw = new Stopwatch();
             sw.Start();
 
             using( var application = (HttpApplication) sender )
@@ -155,27 +156,27 @@ namespace CHAOS.Portal.Core.HttpModule
                     return; // TODO: 404
 
                 var callContext = CreateCallContext( application.Request );
-                callContext.Log.Debug(string.Format("{0} CallContext Created",sw.Elapsed));
+
                 PortalApplication.ProcessRequest(callContext);
-                callContext.Log.Debug(string.Format("{0} Processed", sw.Elapsed));
                 application.Response.ContentEncoding = System.Text.Encoding.UTF8;
                 application.Response.ContentType     = GetContentType( callContext );
                 application.Response.Charset         = "utf-8";
                 application.Response.CacheControl    = "no-cache";
 
-                callContext.Log.Debug(string.Format("{0} Setting Compression", sw.Elapsed));
+                application.Response.AddHeader("Access-Control-Allow-Origin", "*");
+   
                 SetCompression(application);
-                callContext.Log.Debug(string.Format("{0} Creating Response", sw.Elapsed));
-
+                callContext.Log.Debug(string.Format("{0} Duration", callContext.PortalResponse.PortalResult.Duration));
                 using( var inputStream  = callContext.GetResponseStream() )
                 using( var outputStream = application.Response.OutputStream )
                 {
                     callContext.Log.Debug(string.Format("{0} Sending output", sw.Elapsed));
+                    inputStream.Position = 0;
                     inputStream.CopyTo( outputStream );
                     callContext.Log.Debug(string.Format("{0} Output sent", sw.Elapsed));
                 }
 
-                callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed));
+                callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed ));
                 callContext.Log.Commit((uint) sw.ElapsedMilliseconds);
                 application.Response.End();
             }
