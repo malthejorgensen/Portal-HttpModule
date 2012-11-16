@@ -131,7 +131,15 @@ namespace CHAOS.Portal.Core.HttpModule
 
 	    private static IEnumerable<Type> GetClassesOf<T>(Assembly from)
 	    {
-			return from.GetTypes().Where(type => type.IsClass && type.Implements<T>());
+	        try
+	        {
+                return from.GetTypes().Where(type => type.IsClass && type.Implements<T>());
+	        }
+            catch (System.Reflection.ReflectionTypeLoadException e)
+	        {
+	            
+	            throw e.LoaderExceptions[0];
+	        }
 	    }
 
 	    private static void LoadExtensions( PortalApplication application, object obj, PrettyNameAttribute prettyNameAttribute )
