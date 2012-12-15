@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -9,12 +9,17 @@ using System.Web;
 using System.Xml.Linq;
 using CHAOS.Extensions;
 using CHAOS.Index.Solr;
-using CHAOS.Portal.Core.Module;
-using CHAOS.Portal.Core.Request;
-using CHAOS.Portal.Core.Standard;
 using CHAOS.Portal.Data.EF;
 using CHAOS.Portal.Exception;
-using CHAOS.Portal.Core.Extension;
+using Chaos.Portal;
+using Chaos.Portal.Cache;
+using Chaos.Portal.Cache.Couchbase;
+using Chaos.Portal.Extension;
+using Chaos.Portal.Logging.Database;
+using Chaos.Portal.Request;
+using Chaos.Portal.Response;
+using Chaos.Portal.Standard;
+using Chaos.Portal.Logging;
 
 namespace CHAOS.Portal.Core.HttpModule
 {
@@ -22,12 +27,34 @@ namespace CHAOS.Portal.Core.HttpModule
 	{
 		#region Delegates
 
-		private delegate void AssemblyLoaderDelegate( PortalApplication application, object obj, PrettyNameAttribute attribute );
+        private delegate void AssemblyLoaderDelegate(IPortalApplication application, IExtension extension, ExtensionAttribute attribute);
 
 		#endregion
-		#region Properties
+        #region Fields
 
-		protected PortalApplication PortalApplication { get; set; }
+        protected string    ServiceDirectory  = ConfigurationManager.AppSettings["ServiceDirectory"];
+        protected UUID      AnonymousUserGuid = new UUID( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
+        protected LogLevel? _logLevel;
+
+        #endregion
+        #region Properties
+
+        protected IPortalApplication PortalApplication { get; set; }
+
+        protected LogLevel LogLevel
+        {
+            get
+            {
+                if (!_logLevel.HasValue)
+                {
+                    var logLevel = ConfigurationManager.AppSettings["LOG_LEVEL"];
+
+                    _logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), logLevel ?? "Info");
+                }
+
+                return _logLevel.Value;
+            }
+        }
 
         #endregion
         #region IHttpModule Members
@@ -46,12 +73,18 @@ namespace CHAOS.Portal.Core.HttpModule
                 {
                     if( context.Application["PortalApplication"] == null )
                     {
-						PortalApplication = new PortalApplication(new Cache.Membase.Membase(), new SolrCoreManager());
-	                    
-						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+                        //Log = new DatabaseLogger( string.Format("{0}/{1}", PortalRequest.Extension, PortalRequest.Action ), GetSessionFromDatabase() != null ? GetSessionFromDatabase().GUID : null, LogLevel ); // TODO: LogLevel should be set in config
+                        
+                        var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
+                        var cache            = new Cache();
+                        var index            = new SolrCoreManager();
+                        var log              = new DatabaseLogger("tmp", null);
 
-						LoadTypesFromAssembliesAt<IModule>( string.Format( "{0}\\Modules", PortalApplication.ServiceDirectory ), PortalApplication, LoadModules);
-						LoadTypesFromAssembliesAt<IExtension>( string.Format( "{0}\\Extensions", PortalApplication.ServiceDirectory ), PortalApplication, LoadExtensions );
+                        PortalApplication = new PortalApplication( cache, index, portalRepository, log );
+
+						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+
+						LoadTypesFromAssembliesAt<IExtension>( string.Format( "{0}\\Extensions", ServiceDirectory ), PortalApplication, LoadExtensions );
 
 						context.Application["PortalApplication"] = PortalApplication;
                     }
@@ -61,73 +94,29 @@ namespace CHAOS.Portal.Core.HttpModule
 			PortalApplication = (PortalApplication)context.Application["PortalApplication"];
             context.BeginRequest += ContextBeginRequest;
         }
-		
-	    private static void LoadTypesFromAssembliesAt<T>( string path, PortalApplication application, AssemblyLoaderDelegate loadAssembly )
+
+        private static void LoadTypesFromAssembliesAt<T>( string path, IPortalApplication application, AssemblyLoaderDelegate loadAssembly )
 		{
 			foreach (var assembly in System.IO.Directory.GetFiles( path, "*.dll" ).Select(Assembly.LoadFile))
 			{
-				application.LoadedAssemblies.Add(assembly.FullName, assembly);
 
 				foreach (var type in GetClassesOf<T>(from: assembly))
 				{
-					var attribute = type.GetCustomAttribute<PrettyNameAttribute>(true);
+					var attribute = type.GetCustomAttribute<ExtensionAttribute>(true);
 					var obj       = assembly.CreateInstance( type.FullName );
 
-					loadAssembly(application, obj, attribute );
+					loadAssembly(application, (IExtension)obj, attribute );
 				}
 			}
 		}
 
-	    Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
-		{
-			if( PortalApplication.LoadedAssemblies.ContainsKey( args.Name ) )
-				return PortalApplication.LoadedAssemblies[ args.Name ];
+        //Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
+        //{
+        //    if( PortalApplication.LoadedAssemblies.ContainsKey( args.Name ) )
+        //        return PortalApplication.LoadedAssemblies[ args.Name ];
 			
-			throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
-		}
-
-    	private static void LoadModules( PortalApplication application, object obj, PrettyNameAttribute prettyNameAttribute )
-    	{
-    		var attribute = (ModuleAttribute) prettyNameAttribute;
-    		var module    = (IModule)obj;
-
-            // If an attribute is present on the class, load config from database
-            if( attribute != null )
-            {
-				using (var db = new PortalEntities())
-				{
-					var moduleConfig = db.Module_Get(null, attribute.ModuleConfigName).FirstOrDefault();
-
-					if (moduleConfig == null)
-						throw new ModuleConfigurationMissingException(string.Format("The module requires a configuration, but none was found with the name: {0}", attribute.ModuleConfigName));
-
-					module.Initialize(moduleConfig.Configuration);
-
-					var indexSettings = db.IndexSettings_Get((int?)moduleConfig.ID).FirstOrDefault();
-
-					if (indexSettings != null)
-					{
-						foreach (var url in XElement.Parse(indexSettings.Settings).Elements("Core").Select(core => core.Attribute("url").Value))
-						{
-							application.IndexManager.AddIndex(module.GetType().FullName, new SolrCoreConnection(url));
-						}
-					}
-				}
-            }
-
-            // Index modules by the Extensions they subscribe to
-            foreach( var method in module.GetType().GetMethods() )
-            {
-                foreach( Datatype datatypeAttribute in method.GetCustomAttributes( typeof( Datatype ), true ) )
-                {
-                    if( !application.LoadedModules.ContainsKey( datatypeAttribute.ExtensionName ) )
-                        application.LoadedModules.Add( datatypeAttribute.ExtensionName, new Collection<IModule>() );
-
-                    if( !application.LoadedModules[ datatypeAttribute.ExtensionName ].Contains( module ) )
-                        application.LoadedModules[ datatypeAttribute.ExtensionName ].Add( module );
-                }
-            }
-        }
+        //    throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
+        //}
 
 	    private static IEnumerable<Type> GetClassesOf<T>(Assembly from)
 	    {
@@ -142,50 +131,65 @@ namespace CHAOS.Portal.Core.HttpModule
 	        }
 	    }
 
-	    private static void LoadExtensions( PortalApplication application, object obj, PrettyNameAttribute prettyNameAttribute )
+	    private static void LoadExtensions( IPortalApplication application, IExtension extension, ExtensionAttribute configurationAttribute )
         {
-			var attribute = (ExtensionAttribute) prettyNameAttribute;
-    		var extension = (IExtension)obj;
+			var attribute = configurationAttribute;
 
-			application.LoadedExtensions.Add(attribute == null ? extension.GetType().Name : attribute.ExtensionName, extension);
+            if (attribute != null)
+            {
+                using (var db = new PortalEntities())
+                {
+                    var config = db.Module_Get(null, attribute.ConfigurationName).FirstOrDefault();
+
+                    if (config == null)
+                        throw new ModuleConfigurationMissingException(string.Format("The module requires a configuration, but none was found with the name: {0}", attribute.ConfigurationName));
+
+                    extension.WithPortalApplication(application)
+                             .WithConfiguration(config.Configuration);
+
+                    var indexSettings = db.IndexSettings_Get((int?)config.ID).FirstOrDefault();
+
+                    if (indexSettings != null)
+                    {
+                        foreach (var url in XElement.Parse(indexSettings.Settings).Elements("Core").Select(core => core.Attribute("url").Value))
+                        {
+                            application.IndexManager.AddIndex(extension.GetType().FullName, new SolrCoreConnection(url));
+                        }
+                    }
+                }
+            }
+
+			application.LoadedExtensions.Add(attribute == null ? extension.GetType().Name : attribute.Name, extension);
         }
 
         #endregion
         #region Business Logic
-
-        private void ContextBeginRequest( object sender, EventArgs e )
+                    
+        private void ContextBeginRequest(object sender, EventArgs e)
         {
-            var sw = new Stopwatch();
-            sw.Start();
-
             using( var application = (HttpApplication) sender )
             {
-                if( IsOnIgnoreList( application.Request.Url.AbsolutePath ) )
-                    return; // TODO: 404
+                if(IsOnIgnoreList(application.Request.Url)) return; // TODO: 404
 
-                var callContext = CreateCallContext( application.Request );
+                var request  = CreatePortalRequest( application.Request );
+                var response = PortalApplication.ProcessRequest(request);
 
-                PortalApplication.ProcessRequest(callContext);
                 application.Response.ContentEncoding = System.Text.Encoding.UTF8;
-                application.Response.ContentType     = GetContentType( callContext );
+                application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
                 application.Response.Charset         = "utf-8";
                 application.Response.CacheControl    = "no-cache";
 
                 application.Response.AddHeader("Access-Control-Allow-Origin", "*");
    
                 SetCompression(application);
-                callContext.Log.Debug(string.Format("{0} Duration", callContext.PortalResponse.PortalResult.Duration));
-                using( var inputStream  = callContext.GetResponseStream() )
+
+                using( var inputStream  = response.GetResponseStream())
                 using( var outputStream = application.Response.OutputStream )
                 {
-                    callContext.Log.Debug(string.Format("{0} Sending output", sw.Elapsed));
                     inputStream.Position = 0;
                     inputStream.CopyTo( outputStream );
-                    callContext.Log.Debug(string.Format("{0} Output sent", sw.Elapsed));
                 }
 
-                callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed ));
-                callContext.Log.Commit((uint) sw.ElapsedMilliseconds);
                 application.Response.End();
             }
         }
@@ -214,10 +218,10 @@ namespace CHAOS.Portal.Core.HttpModule
         /// </summary>
         /// <param name="callContext"></param>
         /// <returns></returns>
-        private string GetContentType( ICallContext callContext )
+        private string GetContentType( ReturnFormat format )
         {
             // TODO: Should validate when request is received, not after it's done processing
-            switch( callContext.ReturnFormat )
+            switch(format)
             {
                 case ReturnFormat.XML:
                     return "text/xml";
@@ -235,10 +239,9 @@ namespace CHAOS.Portal.Core.HttpModule
         /// </summary>
         /// <param name="absolutePath"></param>
         /// <returns></returns>
-        private bool IsOnIgnoreList( string absolutePath )
+        private bool IsOnIgnoreList( Uri uri )
         {
-            if( absolutePath.EndsWith( "favicon.ico" ) )
-                return true;
+            if(uri.AbsolutePath.EndsWith( "favicon.ico" )) return true;
 
             // TODO: other resources that should be ignored
 
@@ -250,41 +253,21 @@ namespace CHAOS.Portal.Core.HttpModule
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
-        protected ICallContext CreateCallContext( HttpRequest request )
+        protected IPortalRequest CreatePortalRequest( HttpRequest request )
         {
-            var split     = request.Url.AbsolutePath.Substring( request.ApplicationPath.Length ).Split('/');
-            var extension = split[ split.Length - 2 ];
-            var action    = split[ split.Length - 1 ];
+            var extension = request.Url.Segments[request.Url.Segments.Length - 2].Trim( '/' );
+            var action    = request.Url.Segments[request.Url.Segments.Length - 1].Trim( '/' );
 	        
             switch( request.HttpMethod )
             {
                 case "DELETE":
                 case "PUT":
-                case "POST":
-                    {
+                case "POST":    
                         var files = request.Files.AllKeys.Select(key => request.Files[key]).Select(file => new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength)).ToList();
-                        var callContext = new CallContext(PortalApplication, new PortalRequest(extension, action, ConvertToIDictionary(request.Form), files), new PortalResponse());
 
-                        callContext.Log.Debug(request.ContentEncoding.EncodingName);
-                        foreach (var parameter in callContext.PortalRequest.Parameters)
-                        {
-                            callContext.Log.Debug(parameter.Value);
-                        }
-
-                        return callContext;
-                    }
+                        return new PortalRequest( extension, action, ConvertToIDictionary( request.Form ), files );
                 case "GET":
-                    {
-                        var callContext = new CallContext(PortalApplication, new PortalRequest(extension, action, ConvertToIDictionary(request.QueryString)), new PortalResponse());
-
-                        callContext.Log.Debug(request.ContentEncoding.EncodingName);
-                        foreach (var parameter in callContext.PortalRequest.Parameters)
-                        {
-                            callContext.Log.Debug(parameter.Value);
-                        }
-
-                        return callContext;
-                    }
+                        return new PortalRequest( extension, action, ConvertToIDictionary( request.QueryString ) );
                 default:
                     throw new UnhandledException( "Unknown Http Method" );
             }
