@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Configuration;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Web;
@@ -12,12 +11,10 @@ using CHAOS.Index.Solr;
 using CHAOS.Portal.Data.EF;
 using CHAOS.Portal.Exception;
 using Chaos.Portal;
-using Chaos.Portal.Cache;
 using Chaos.Portal.Cache.Couchbase;
 using Chaos.Portal.Extension;
 using Chaos.Portal.Logging.Database;
 using Chaos.Portal.Request;
-using Chaos.Portal.Response;
 using Chaos.Portal.Standard;
 using Chaos.Portal.Logging;
 
@@ -27,7 +24,7 @@ namespace CHAOS.Portal.Core.HttpModule
 	{
 		#region Delegates
 
-        private delegate void AssemblyLoaderDelegate(IPortalApplication application, IExtension extension, ExtensionAttribute attribute);
+        private delegate void AssemblyLoaderDelegate( IPortalApplication application, IExtension extension, PortalExtensionAttribute attribute );
 
 		#endregion
         #region Fields
@@ -102,7 +99,7 @@ namespace CHAOS.Portal.Core.HttpModule
 
 				foreach (var type in GetClassesOf<T>(from: assembly))
 				{
-					var attribute = type.GetCustomAttribute<ExtensionAttribute>(true);
+					var attribute = type.GetCustomAttribute<PortalExtensionAttribute>(true);
 					var obj       = assembly.CreateInstance( type.FullName );
 
 					loadAssembly(application, (IExtension)obj, attribute );
@@ -131,7 +128,7 @@ namespace CHAOS.Portal.Core.HttpModule
 	        }
 	    }
 
-	    private static void LoadExtensions( IPortalApplication application, IExtension extension, ExtensionAttribute configurationAttribute )
+	    private static void LoadExtensions( IPortalApplication application, IExtension extension, PortalExtensionAttribute configurationAttribute )
         {
 			var attribute = configurationAttribute;
 
@@ -159,7 +156,7 @@ namespace CHAOS.Portal.Core.HttpModule
                 }
             }
 
-			application.LoadedExtensions.Add(attribute == null ? extension.GetType().Name : attribute.Name, extension);
+            application.LoadedExtensions.Add( attribute != null && !string.IsNullOrEmpty( attribute.Name ) ? attribute.Name : extension.GetType().Name, extension );
         }
 
         #endregion
