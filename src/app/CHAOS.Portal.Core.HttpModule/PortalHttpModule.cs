@@ -96,7 +96,6 @@ namespace CHAOS.Portal.Core.HttpModule
 		{
 			foreach (var assembly in System.IO.Directory.GetFiles( path, "*.dll" ).Select(Assembly.LoadFile))
 			{
-
 				foreach (var type in GetClassesOf<T>(from: assembly))
 				{
 					var attribute = type.GetCustomAttribute<PortalExtensionAttribute>(true);
@@ -119,11 +118,10 @@ namespace CHAOS.Portal.Core.HttpModule
 	    {
 	        try
 	        {
-                return from.GetTypes().Where(type => type.IsClass && type.Implements<T>());
+                return from.GetTypes().Where(type => type.IsClass && type.Implements<T>() && !type.IsAbstract);
 	        }
-            catch (System.Reflection.ReflectionTypeLoadException e)
+            catch (ReflectionTypeLoadException e)
 	        {
-	            
 	            throw e.LoaderExceptions[0];
 	        }
 	    }
