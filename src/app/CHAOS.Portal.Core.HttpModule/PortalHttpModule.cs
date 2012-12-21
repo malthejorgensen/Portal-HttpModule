@@ -12,9 +12,11 @@ using CHAOS.Portal.Data.EF;
 using CHAOS.Portal.Exception;
 using Chaos.Portal;
 using Chaos.Portal.Cache.Couchbase;
+using Chaos.Portal.Data.Dto.Standard;
 using Chaos.Portal.Extension;
 using Chaos.Portal.Logging.Database;
 using Chaos.Portal.Request;
+using Chaos.Portal.Response;
 using Chaos.Portal.Standard;
 using Chaos.Portal.Logging;
 
@@ -159,35 +161,46 @@ namespace CHAOS.Portal.Core.HttpModule
 
         #endregion
         #region Business Logic
-                    
+
         private void ContextBeginRequest(object sender, EventArgs e)
         {
-            using( var application = (HttpApplication) sender )
+            using (var application = (HttpApplication) sender)
             {
-                if(IsOnIgnoreList(application.Request.Url)) return; // TODO: 404
+                if (IsOnIgnoreList(application.Request.Url)) return; // TODO: 404
 
-                var request  = CreatePortalRequest( application.Request );
-                var response = PortalApplication.ProcessRequest(request);
+                var request  = CreatePortalRequest(application.Request);
+                var response = new PortalResponse(new PortalHeader(request.Stopwatch), new PortalResult(), new PortalError());
 
-                application.Response.ContentEncoding = System.Text.Encoding.UTF8;
-                application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
-                application.Response.Charset         = "utf-8";
-                application.Response.CacheControl    = "no-cache";
+                try
+                {
+                    PortalApplication.ProcessRequest(request, response);
+                    
+                    application.Response.ContentEncoding = System.Text.Encoding.UTF8;
+                    application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
+                    application.Response.Charset         = "utf-8";
+                    application.Response.CacheControl    = "no-cache";
 
-                application.Response.AddHeader("Access-Control-Allow-Origin", "*");
-   
-                SetCompression(application);
+                    application.Response.AddHeader("Access-Control-Allow-Origin", "*");
 
-                using( var inputStream  = response.GetResponseStream())
-                using( var outputStream = application.Response.OutputStream )
+                    SetCompression(application);
+                }
+			    catch (System.Exception ex)
+			    {
+			        response.Error.SetException(ex);
+			    //    Log.Fatal("ProcessRequest() - Unhandeled exception occured during", e);
+			    }
+
+                using (var inputStream = response.GetResponseStream())
+                using (var outputStream = application.Response.OutputStream)
                 {
                     inputStream.Position = 0;
-                    inputStream.CopyTo( outputStream );
+                    inputStream.CopyTo(outputStream);
                 }
 
                 application.Response.End();
             }
         }
+        
 
         private static void SetCompression(HttpApplication application)
         {
