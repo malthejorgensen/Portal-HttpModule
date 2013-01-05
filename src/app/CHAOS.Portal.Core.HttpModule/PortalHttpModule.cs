@@ -13,11 +13,11 @@ using CHAOS.Portal.Exception;
 using Chaos.Portal;
 using Chaos.Portal.Cache.Couchbase;
 using Chaos.Portal.Data.Dto.Standard;
+using Chaos.Portal.Data.EF;
 using Chaos.Portal.Extension;
 using Chaos.Portal.Logging.Database;
 using Chaos.Portal.Request;
 using Chaos.Portal.Response;
-using Chaos.Portal.Standard;
 using Chaos.Portal.Logging;
 
 namespace CHAOS.Portal.Core.HttpModule
@@ -77,9 +77,9 @@ namespace CHAOS.Portal.Core.HttpModule
                         var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
                         var cache            = new Cache();
                         var index            = new SolrCoreManager();
-                        var log              = new DatabaseLogger("tmp", null);
+                        var loggingFactory   = new DatabaseLoggerFactory(portalRepository);
 
-                        PortalApplication = new PortalApplication( cache, index, portalRepository, log );
+                        PortalApplication = new PortalApplication( cache, index, portalRepository, loggingFactory );
 
 						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
