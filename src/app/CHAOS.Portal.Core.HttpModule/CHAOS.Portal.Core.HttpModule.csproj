@@ -84,6 +84,11 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="HttpMethod\Strategies\AHttpMethodStrategy.cs" />
+    <Compile Include="HttpMethod\Strategies\GetMethodStrategy.cs" />
+    <Compile Include="HttpMethod\Strategies\OptionsMethodStrategy.cs" />
+    <Compile Include="HttpMethod\Strategies\PostMethodStrategy.cs" />
+    <Compile Include="HttpMethod\IHttpMethodStrategy.cs" />
     <Compile Include="PortalHttpModule.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
