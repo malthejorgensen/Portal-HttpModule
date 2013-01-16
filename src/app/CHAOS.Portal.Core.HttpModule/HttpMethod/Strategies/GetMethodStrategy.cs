@@ -35,7 +35,5 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
         }
 
         #endregion
-
-        
     }
 }
