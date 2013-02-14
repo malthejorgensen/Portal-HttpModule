@@ -28,7 +28,7 @@ namespace CHAOS.Portal.Core.HttpModule
         private static IDictionary<string, IHttpMethodStrategy> _httpMethodHandlers; 
 
         protected string    ServiceDirectory  = ConfigurationManager.AppSettings["ServiceDirectory"];
-        protected UUID      AnonymousUserGuid = new UUID( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
+        protected Guid      AnonymousUserGuid = new Guid( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
         protected LogLevel? _logLevel;
 
         #endregion
@@ -77,7 +77,7 @@ namespace CHAOS.Portal.Core.HttpModule
                         var cache            = new Cache();
                         var index            = new SolrCoreManager();
                         var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
-
+                        
                         PortalApplication = new PortalApplication( cache, index, new ViewManager(), portalRepository, loggingFactory );
 
 						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
