@@ -6,7 +6,6 @@ using System.Reflection;
 using System.Web;
 using System.Xml.Linq;
 using CHAOS.Extensions;
-using CHAOS.Index.Solr;
 using CHAOS.Portal.Core.HttpModule.HttpMethod;
 using CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies;
 using CHAOS.Portal.Data.EF;
@@ -15,12 +14,17 @@ using Chaos.Portal.Cache.Couchbase;
 using Chaos.Portal.Data.EF;
 using Chaos.Portal.Exceptions;
 using Chaos.Portal.Extension;
-using Chaos.Portal.Index;
 using Chaos.Portal.Logging.Database;
 using Chaos.Portal.Logging;
 
 namespace CHAOS.Portal.Core.HttpModule
 {
+    using Chaos.Portal.Indexing.View;
+
+    using Couchbase;
+
+    using IView = Chaos.Portal.Indexing.View.IView;
+
     public class PortalHttpModule : IHttpModule
 	{
         #region Fields
@@ -74,11 +78,11 @@ namespace CHAOS.Portal.Core.HttpModule
                     if( context.Application["PortalApplication"] == null )
                     {
                         var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
-                        var cache            = new Cache();
-                        var index            = new SolrCoreManager();
+                        var cache            = new Cache(new CouchbaseClient());
                         var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
+                        var viewManager      = new ViewManager(new Dictionary<string, IView>(), cache);
 
-                        PortalApplication = new PortalApplication( cache, index, new ViewManager(), portalRepository, loggingFactory );
+                        PortalApplication = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
 
 						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
@@ -134,16 +138,6 @@ namespace CHAOS.Portal.Core.HttpModule
 
                         extension.WithPortalApplication(application)
                                  .WithConfiguration(config.Configuration);
-
-                        var indexSettings = db.IndexSettings_Get((int?)config.ID).FirstOrDefault();
-
-                        if (indexSettings != null)
-                        {
-                            foreach (var url in XElement.Parse(indexSettings.Settings).Elements("Core").Select(core => core.Attribute("url").Value))
-                            {
-                                application.IndexManager.AddIndex(extension.GetType().FullName, new SolrCoreConnection(url));
-                            }
-                        }
                     }
                 }
 
@@ -191,7 +185,7 @@ namespace CHAOS.Portal.Core.HttpModule
         /// </summary>
         /// <param name="absolutePath"></param>
         /// <returns></returns>
-        private bool IsOnIgnoreList( Uri uri )
+        private static bool IsOnIgnoreList( Uri uri )
         {
             if(uri.AbsolutePath.EndsWith( "favicon.ico" )) return true;
 
