@@ -32,7 +32,7 @@ namespace CHAOS.Portal.Core.HttpModule
         private static IDictionary<string, IHttpMethodStrategy> _httpMethodHandlers; 
 
         protected string    ServiceDirectory  = ConfigurationManager.AppSettings["ServiceDirectory"];
-        protected UUID      AnonymousUserGuid = new UUID( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
+        protected Guid      AnonymousUserGuid = new Guid( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
         protected LogLevel? _logLevel;
 
         #endregion
@@ -81,7 +81,6 @@ namespace CHAOS.Portal.Core.HttpModule
                         var cache            = new Cache(new CouchbaseClient());
                         var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
                         var viewManager      = new ViewManager(new Dictionary<string, IView>(), cache);
-
                         PortalApplication = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
 
 						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;

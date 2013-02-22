@@ -1,13 +1,16 @@
-using System;
-using System.Text;
-using System.Web;
-using Chaos.Portal;
-using Chaos.Portal.Data.Dto.Standard;
-using Chaos.Portal.Request;
-using Chaos.Portal.Response;
-
 namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
 {
+    using System.Text;
+    using System.Web;
+
+    using Chaos.Portal;
+    using Chaos.Portal.Data.Dto.Standard;
+    using Chaos.Portal.Request;
+    using Chaos.Portal.Response;
+
+    /// <summary>
+    /// The get method strategy.
+    /// </summary>
     public class GetMethodStrategy : AHttpMethodStrategy
     {
         #region Initialize
@@ -19,6 +22,15 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
         #endregion
         #region Business Logic
 
+        /// <summary>
+        /// The create portal request.
+        /// </summary>
+        /// <param name="request">
+        /// The request.
+        /// </param>
+        /// <returns>
+        /// The <see cref="IPortalRequest"/>.
+        /// </returns>
         protected override IPortalRequest CreatePortalRequest(HttpRequest request)
         {
             var extension = request.Url.Segments[request.Url.Segments.Length - 2].Trim( '/' );

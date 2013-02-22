@@ -1,14 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Text;
-using System.Web;
-using Chaos.Portal;
-using Chaos.Portal.Request;
-using Chaos.Portal.Response;
-
-namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
+﻿namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.Specialized;
+    using System.Text;
+    using System.Web;
+
+    using Chaos.Portal;
+    using Chaos.Portal.Request;
+    using Chaos.Portal.Response;
+
+    /// <summary>
+    /// The a http method strategy.
+    /// </summary>
     public abstract class AHttpMethodStrategy : IHttpMethodStrategy
     {
         #region Properties
@@ -32,10 +36,17 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
         #endregion
         #region Business Logic
 
+        /// <summary>
+        /// The process request.
+        /// </summary>
+        /// <param name="application">
+        /// The application.
+        /// </param>
         public void ProcessRequest(HttpApplication application)
         {
             var message = new StringBuilder();
-            var timer = new System.Diagnostics.Stopwatch();timer.Start();
+            var timer = new System.Diagnostics.Stopwatch();
+            timer.Start();
             
             var request  = CreatePortalRequest(application.Request); message.AppendFormat("{0} var request  = CreatePortalRequest(application.Request);\n", timer.Elapsed);
             var response = CreatePortalResponse( request ); message.AppendFormat( "{0} var response = CreatePortalResponse(request);\n", timer.Elapsed );
@@ -77,8 +88,8 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
         /// <summary>
         /// Get the http response content type based on the return format requested 
         /// </summary>
-        /// <param name="format"></param>
-        /// <returns></returns>
+        /// <param name="format">The return format for which the mime type is returned</param>
+        /// <returns>The mime type associated with the ReturnFormat</returns>
         private static string GetContentType(ReturnFormat format)
         {
             // TODO: Should validate when request is received, not after it's done processing
