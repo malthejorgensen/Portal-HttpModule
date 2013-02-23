@@ -20,6 +20,7 @@ using Chaos.Portal.Logging;
 namespace CHAOS.Portal.Core.HttpModule
 {
     using Chaos.Portal.Indexing.View;
+    using Chaos.Portal.Module;
 
     using Couchbase;
 
@@ -84,8 +85,8 @@ namespace CHAOS.Portal.Core.HttpModule
                         PortalApplication = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
 
 						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-
-                        InitializeExtensions(string.Format("{0}\\Extensions", ServiceDirectory), PortalApplication);
+                        new PortalModule().Load(PortalApplication);
+                        InitializeModules(string.Format("{0}\\Modules", ServiceDirectory), PortalApplication);
 
 						context.Application["PortalApplication"] = PortalApplication;
                     }
@@ -105,42 +106,26 @@ namespace CHAOS.Portal.Core.HttpModule
             context.BeginRequest += ContextBeginRequest;
         }
 
-        private static IEnumerable<IExtension> LoadExtensions( string path )
+        private static IEnumerable<IModule> LoadModules(string path)
 		{
             if (!System.IO.Directory.Exists(path)) yield break;
 
 			foreach (var assembly in System.IO.Directory.GetFiles( path, "*.dll" ).Select(Assembly.LoadFile))
 			{
-                foreach (var type in GetClassesOf<IExtension>(from: assembly))
+                foreach (var type in GetClassesOf<IModule>(from: assembly))
 				{
 					var obj = assembly.CreateInstance( type.FullName );
 
-				    yield return (IExtension) obj;
+                    yield return (IModule)obj;
 				}
 			}
 		}
 
-        private static void InitializeExtensions( string path, IPortalApplication application )
+        private static void InitializeModules( string path, IPortalApplication application )
         {
-            foreach (var extension in LoadExtensions(path))
+            foreach (var module in LoadModules(path))
 	        {
-                var attribute = extension.GetType().GetCustomAttribute<PortalExtensionAttribute>(true);
-
-                if (attribute != null)
-                {
-                    using (var db = new PortalEntities())
-                    {
-                        var config = db.Module_Get(null, attribute.ConfigurationName).FirstOrDefault();
-
-                        if (config == null)
-                            throw new ModuleConfigurationMissingException(string.Format("The module requires a configuration, but none was found with the name: {0}", attribute.ConfigurationName));
-
-                        extension.WithPortalApplication(application)
-                                 .WithConfiguration(config.Configuration);
-                    }
-                }
-
-                application.LoadedExtensions.Add( attribute != null && !string.IsNullOrEmpty( attribute.Name ) ? attribute.Name : extension.GetType().Name, extension );
+                module.Load(application);
 	        }
         }
 
