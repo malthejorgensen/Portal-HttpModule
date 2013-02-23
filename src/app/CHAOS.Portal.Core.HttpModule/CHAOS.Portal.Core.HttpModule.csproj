@@ -53,6 +53,9 @@
     <Reference Include="CHAOS">
       <HintPath>..\..\..\lib\CHAOS.dll</HintPath>
     </Reference>
+    <Reference Include="Chaos.Portal">
+      <HintPath>..\..\..\lib\Chaos.Portal.dll</HintPath>
+    </Reference>
     <Reference Include="Couchbase, Version=1.2.0.0, Culture=neutral, PublicKeyToken=05e9c6b5a9ec94c2, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\lib\Couchbase.dll</HintPath>
@@ -71,9 +74,6 @@
     <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\lib\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="Portal">
-      <HintPath>..\..\..\lib\Portal.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />

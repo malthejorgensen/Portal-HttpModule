@@ -106,27 +106,17 @@ namespace CHAOS.Portal.Core.HttpModule
             context.BeginRequest += ContextBeginRequest;
         }
 
-        private static IEnumerable<IModule> LoadModules(string path)
-		{
-            if (!System.IO.Directory.Exists(path)) yield break;
-
-			foreach (var assembly in System.IO.Directory.GetFiles( path, "*.dll" ).Select(Assembly.LoadFile))
-			{
-                foreach (var type in GetClassesOf<IModule>(from: assembly))
-				{
-					var obj = assembly.CreateInstance( type.FullName );
-
-                    yield return (IModule)obj;
-				}
-			}
-		}
-
         private static void InitializeModules( string path, IPortalApplication application )
         {
-            foreach (var module in LoadModules(path))
-	        {
-                module.Load(application);
-	        }
+            foreach (var assembly in System.IO.Directory.GetFiles(path, "*.dll").Select(Assembly.LoadFile))
+            {
+                foreach (var type in GetClassesOf<IModule>(from: assembly))
+                {
+                    var obj = assembly.CreateInstance(type.FullName);
+
+                    application.AddModule((IModule)obj);
+                }
+            }
         }
 
         //Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
