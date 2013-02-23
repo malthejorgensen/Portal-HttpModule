@@ -4,21 +4,20 @@ using System.Configuration;
 using System.Linq;
 using System.Reflection;
 using System.Web;
-using System.Xml.Linq;
-using CHAOS.Extensions;
+
 using CHAOS.Portal.Core.HttpModule.HttpMethod;
 using CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies;
 using CHAOS.Portal.Data.EF;
 using Chaos.Portal;
 using Chaos.Portal.Cache.Couchbase;
-using Chaos.Portal.Data.EF;
 using Chaos.Portal.Exceptions;
-using Chaos.Portal.Extension;
 using Chaos.Portal.Logging.Database;
 using Chaos.Portal.Logging;
 
 namespace CHAOS.Portal.Core.HttpModule
 {
+    using CHAOS.Extensions;
+
     using Chaos.Portal.Indexing.View;
     using Chaos.Portal.Module;
 
@@ -30,7 +29,9 @@ namespace CHAOS.Portal.Core.HttpModule
 	{
         #region Fields
 
-        private static IDictionary<string, IHttpMethodStrategy> _httpMethodHandlers; 
+        private static IDictionary<string, IHttpMethodStrategy> _httpMethodHandlers;
+
+        private static IDictionary<string, Assembly> _loadedAssemblies; 
 
         protected string    ServiceDirectory  = ConfigurationManager.AppSettings["ServiceDirectory"];
         protected Guid      AnonymousUserGuid = new Guid( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
@@ -61,7 +62,7 @@ namespace CHAOS.Portal.Core.HttpModule
 
         static PortalHttpModule()
         {
-            
+            _loadedAssemblies = new Dictionary<string, Assembly>();
         }
 
         public void Dispose()
@@ -84,7 +85,7 @@ namespace CHAOS.Portal.Core.HttpModule
                         var viewManager      = new ViewManager(new Dictionary<string, IView>(), cache);
                         PortalApplication = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
 
-						//AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
                         new PortalModule().Load(PortalApplication);
                         InitializeModules(string.Format("{0}\\Modules", ServiceDirectory), PortalApplication);
 
@@ -110,6 +111,8 @@ namespace CHAOS.Portal.Core.HttpModule
         {
             foreach (var assembly in System.IO.Directory.GetFiles(path, "*.dll").Select(Assembly.LoadFile))
             {
+                _loadedAssemblies.Add(assembly.FullName, assembly);
+
                 foreach (var type in GetClassesOf<IModule>(from: assembly))
                 {
                     var obj = assembly.CreateInstance(type.FullName);
@@ -119,13 +122,13 @@ namespace CHAOS.Portal.Core.HttpModule
             }
         }
 
-        //Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
-        //{
-        //    if( PortalApplication.LoadedAssemblies.ContainsKey( args.Name ) )
-        //        return PortalApplication.LoadedAssemblies[ args.Name ];
+        Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
+        {
+            if( _loadedAssemblies.ContainsKey( args.Name ) )
+                return _loadedAssemblies[args.Name];
 			
-        //    throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
-        //}
+            throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
+        }
 
 	    private static IEnumerable<Type> GetClassesOf<T>(Assembly from)
 	    {
