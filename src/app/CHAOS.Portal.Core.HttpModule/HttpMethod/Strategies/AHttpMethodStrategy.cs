@@ -44,45 +44,32 @@
         /// </param>
         public void ProcessRequest(HttpApplication application)
         {
-            var message = new StringBuilder();
-            var timer = new System.Diagnostics.Stopwatch();
-            timer.Start();
-            
-            var request  = CreatePortalRequest(application.Request); message.AppendFormat("{0} var request  = CreatePortalRequest(application.Request);\n", timer.Elapsed);
-            var response = CreatePortalResponse( request ); message.AppendFormat( "{0} var response = CreatePortalResponse(request);\n", timer.Elapsed );
+            var request  = CreatePortalRequest(application.Request);
+            var response = CreatePortalResponse( request );
 
             try
             {
-                PortalApplication.ProcessRequest( request, response ); message.AppendFormat( "{0} PortalApplication.ProcessRequest( request, response );\n", timer.Elapsed );
+                PortalApplication.ProcessRequest( request, response );
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 response.Error.SetException(ex);
                 PortalApplication.Log.Fatal("ProcessRequest() - Unhandeled exception occured during", ex);
             }
 
-            application.Response.Cache.SetMaxAge(new TimeSpan(0,0,30));
-            application.Response.CacheControl    = "private";
-            application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
-            
             application.Response.AppendHeader( "Access-Control-Allow-Origin", "*" );
-
+            application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
             application.Response.Charset         = response.Header.Encoding.HeaderName;
             application.Response.ContentEncoding = response.Header.Encoding;
-            message.AppendFormat( "{0} set headers\n", timer.Elapsed );
+
             SetCompression(application);
-            message.AppendFormat( "{0} SetCompression(application);\n", timer.Elapsed );
 
             using (var inputStream = response.GetResponseStream())
             using (var outputStream = application.Response.OutputStream)
             {
-                message.AppendFormat( "{0} open streams\n", timer.Elapsed );
                 inputStream.Position = 0;
                 inputStream.CopyTo(outputStream);
-                message.AppendFormat( "{0} copy stream", timer.Elapsed );
             }
-
-            PortalApplication.Log.WithStopwatch(timer).Debug( message.ToString() );
         }
 
         /// <summary>
