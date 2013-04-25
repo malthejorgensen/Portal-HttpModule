@@ -9,7 +9,6 @@ using CHAOS.Portal.Core.HttpModule.HttpMethod;
 using CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies;
 using Chaos.Portal;
 using Chaos.Portal.Cache.Couchbase;
-using Chaos.Portal.Exceptions;
 using Chaos.Portal.Logging.Database;
 using Chaos.Portal.Logging;
 
@@ -17,7 +16,8 @@ namespace CHAOS.Portal.Core.HttpModule
 {
     using CHAOS.Extensions;
 
-    using Chaos.Portal.Data;
+    using Chaos.Portal.Core.Data;
+    using Chaos.Portal.Core.Exceptions;
     using Chaos.Portal.Indexing.View;
     using Chaos.Portal.Module;
 

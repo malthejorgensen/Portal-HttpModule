@@ -13,9 +13,9 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
     using System.Web;
 
     using Chaos.Portal;
-    using Chaos.Portal.Data.Dto;
     using Chaos.Portal.Request;
     using Chaos.Portal.Response;
+    using Chaos.Portal.Response.Dto;
 
     /// <summary>
     /// The post method strategy.
