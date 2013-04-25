@@ -18,6 +18,8 @@ using CHAOS.Portal.Core.Extension;
 
 namespace CHAOS.Portal.Core.HttpModule
 {
+    using Exception = System.Exception;
+
     public class PortalHttpModule : IHttpModule
 	{
 		#region Delegates
@@ -155,39 +157,62 @@ namespace CHAOS.Portal.Core.HttpModule
 
         private void ContextBeginRequest( object sender, EventArgs e )
         {
-            var sw = new Stopwatch();
-            sw.Start();
+            
+                using( var application = (HttpApplication) sender )
+                {   
+                    var sw = new Stopwatch();
+                    sw.Start();
 
-            using( var application = (HttpApplication) sender )
-            {
-                if( IsOnIgnoreList( application.Request.Url.AbsolutePath ) )
-                    return; // TODO: 404
+                    var callContext = CreateCallContext(application.Request);
 
-                var callContext = CreateCallContext( application.Request );
+                    try
+                    {
+                        if( IsOnIgnoreList( application.Request.Url.AbsolutePath ) )
+                            return; // TODO: 404
 
-                PortalApplication.ProcessRequest(callContext);
-                application.Response.ContentEncoding = System.Text.Encoding.UTF8;
-                application.Response.ContentType     = GetContentType( callContext );
-                application.Response.Charset         = "utf-8";
-                application.Response.CacheControl    = "no-cache";
+                        PortalApplication.ProcessRequest(callContext);
+                        application.Response.ContentEncoding = System.Text.Encoding.UTF8;
+                        application.Response.ContentType     = GetContentType( callContext );
+                        application.Response.Charset         = "utf-8";
+                        application.Response.CacheControl    = "no-cache";
 
-                application.Response.AddHeader("Access-Control-Allow-Origin", "*");
+                        if (callContext.PortalResponse.Attachment != null)
+                        {
+                            application.Response.AddHeader("Content-Disposition", string.Format("attachment; filename=\"{0}\"", callContext.PortalResponse.Attachment.FileName));
+                            application.Response.ContentType = callContext.PortalResponse.Attachment.ContentType;
+                            application.Response.BufferOutput = false;
+                        }
+                        else
+                            SetCompression(application);
+
+                        application.Response.AddHeader("Access-Control-Allow-Origin", "*");
    
-                SetCompression(application);
-                callContext.Log.Debug(string.Format("{0} Duration", callContext.PortalResponse.PortalResult.Duration));
-                using( var inputStream  = callContext.GetResponseStream() )
-                using( var outputStream = application.Response.OutputStream )
-                {
-                    callContext.Log.Debug(string.Format("{0} Sending output", sw.Elapsed));
-                    inputStream.Position = 0;
-                    inputStream.CopyTo( outputStream );
-                    callContext.Log.Debug(string.Format("{0} Output sent", sw.Elapsed));
-                }
+                        callContext.Log.Debug(string.Format("{0} Duration", callContext.PortalResponse.PortalResult.Duration));
+                        using( var inputStream  = callContext.GetResponseStream() )
+                        using( var outputStream = application.Response.OutputStream )
+                        {
+                            if (inputStream.CanSeek) inputStream.Position = 0;
 
-                callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed ));
-                callContext.Log.Commit((uint) sw.ElapsedMilliseconds);
-                application.Response.End();
-            }
+                            inputStream.CopyTo( outputStream);
+
+                            callContext.Log.Debug(string.Format("{0} Output sent", sw.Elapsed));
+                        }
+
+                        if (callContext.PortalResponse.Attachment != null) callContext.PortalResponse.Attachment.Disposable.Dispose();
+
+                        callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed ));
+                    
+                        application.Response.End();
+                    }
+                    catch(Exception ex)
+                    {
+                        callContext.Log.Error("Fatal error in http module", ex);
+                    }
+                    finally
+                    {
+                        callContext.Log.Commit((uint)sw.ElapsedMilliseconds);
+                    }
+                }
         }
 
         private static void SetCompression(HttpApplication application)
@@ -225,6 +250,8 @@ namespace CHAOS.Portal.Core.HttpModule
                     return "application/json";
                 case ReturnFormat.JSONP:
                     return "application/javascript";
+                case ReturnFormat.ATTACHMENT:
+                    return "application/x-download";
                 default:
                     throw new NotImplementedException( "Unknown return format" ); 
             }
