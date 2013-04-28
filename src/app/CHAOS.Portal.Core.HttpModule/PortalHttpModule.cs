@@ -201,8 +201,6 @@ namespace CHAOS.Portal.Core.HttpModule
                         if (callContext.PortalResponse.Attachment != null) callContext.PortalResponse.Attachment.Disposable.Dispose();
 
                         callContext.Log.Debug(string.Format("{0} Ending", sw.Elapsed ));
-                    
-                        application.Response.End();
                     }
                     catch(Exception ex)
                     {
@@ -211,6 +209,7 @@ namespace CHAOS.Portal.Core.HttpModule
                     finally
                     {
                         callContext.Log.Commit((uint)sw.ElapsedMilliseconds);
+                        application.CompleteRequest();
                     }
                 }
         }
