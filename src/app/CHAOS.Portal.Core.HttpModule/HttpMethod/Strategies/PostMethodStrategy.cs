@@ -14,8 +14,6 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
 
     using Chaos.Portal;
     using Chaos.Portal.Request;
-    using Chaos.Portal.Response;
-    using Chaos.Portal.Response.Dto;
 
     /// <summary>
     /// The post method strategy.
@@ -37,20 +35,6 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
 
         #endregion
         #region Business Logic
-
-        /// <summary>
-        /// The create portal response.
-        /// </summary>
-        /// <param name="request">
-        /// The request.
-        /// </param>
-        /// <returns>
-        /// The <see cref="IPortalResponse"/>.
-        /// </returns>
-        protected override IPortalResponse CreatePortalResponse(IPortalRequest request)
-        {
-            return new PortalResponse(new PortalHeader(request.Stopwatch, System.Text.Encoding.UTF8), new PortalResult(), new PortalError());
-        }
 
         /// <summary>
         /// The create portal request.

@@ -16,8 +16,8 @@ namespace CHAOS.Portal.Core.HttpModule
 {
     using CHAOS.Extensions;
 
-    using Chaos.Portal.Core.Data;
-    using Chaos.Portal.Core.Exceptions;
+    using Chaos.Portal.Data;
+    using Chaos.Portal.Exceptions;
     using Chaos.Portal.Indexing.View;
     using Chaos.Portal.Module;
 
@@ -122,7 +122,7 @@ namespace CHAOS.Portal.Core.HttpModule
             }
         }
 
-        Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
+        static Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
         {
             if( _loadedAssemblies.ContainsKey( args.Name ) )
                 return _loadedAssemblies[args.Name];
@@ -145,30 +145,35 @@ namespace CHAOS.Portal.Core.HttpModule
         #endregion
         #region Business Logic
 
-        private void ContextBeginRequest(object sender, EventArgs e)
+        private static void ContextBeginRequest(object sender, EventArgs e)
         {
-            using (var application = (HttpApplication) sender)
+            try
             {
-                if (IsOnIgnoreList(application.Request.Url)) return; // TODO: 404
+                using (var application = (HttpApplication) sender)
+                {
+                    if (IsOnIgnoreList(application.Request.Url)) return; // TODO: 404
 
-                _httpMethodHandlers[application.Request.HttpMethod].ProcessRequest(application);
+                    _httpMethodHandlers[application.Request.HttpMethod].ProcessRequest(application);
 
-                application.Response.End();
+                    application.CompleteRequest();
+                }
+            }
+            catch (Exception ex)
+            {
+                PortalApplication.Log.Fatal("ProcessRequest() - Unhandeled exception occured during", ex);
             }
         }
 
         /// <summary>
         /// Determine if the requested resource should be ignored
         /// </summary>
-        /// <param name="absolutePath"></param>
+        /// <param name="uri"> </param>
         /// <returns></returns>
         private static bool IsOnIgnoreList( Uri uri )
         {
-            if(uri.AbsolutePath.EndsWith( "favicon.ico" )) return true;
+            return uri.AbsolutePath.EndsWith( "favicon.ico" );
 
             // TODO: other resources that should be ignored
-
-            return false;
         }
 
         #endregion

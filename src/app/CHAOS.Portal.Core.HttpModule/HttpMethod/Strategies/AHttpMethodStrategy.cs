@@ -22,7 +22,6 @@
         #region Abstract methods
 
         protected abstract IPortalRequest CreatePortalRequest(HttpRequest request);
-        protected abstract IPortalResponse CreatePortalResponse(IPortalRequest request);
 
         #endregion
         #region Initialize
@@ -44,30 +43,22 @@
         public void ProcessRequest(HttpApplication application)
         {
             var request  = CreatePortalRequest(application.Request);
-            var response = CreatePortalResponse( request );
 
-            try
+            using (var response = PortalApplication.ProcessRequest(request))
             {
-                PortalApplication.ProcessRequest( request, response );
-            }
-            catch (Exception ex)
-            {
-                response.Error.SetException(ex);
-                PortalApplication.Log.Fatal("ProcessRequest() - Unhandeled exception occured during", ex);
-            }
+                application.Response.AppendHeader( "Access-Control-Allow-Origin", "*" );
+                application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
+                application.Response.Charset         = response.Header.Encoding.HeaderName;
+                application.Response.ContentEncoding = response.Header.Encoding;
 
-            application.Response.AppendHeader( "Access-Control-Allow-Origin", "*" );
-            application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
-            application.Response.Charset         = response.Header.Encoding.HeaderName;
-            application.Response.ContentEncoding = response.Header.Encoding;
+                SetCompression(application);
 
-            SetCompression(application);
-
-            using (var inputStream = response.GetResponseStream())
-            using (var outputStream = application.Response.OutputStream)
-            {
-                inputStream.Position = 0;
-                inputStream.CopyTo(outputStream);
+                using (var inputStream = response.GetResponseStream())
+                using (var outputStream = application.Response.OutputStream)
+                {
+                    inputStream.Position = 0;
+                    inputStream.CopyTo(outputStream);
+                }
             }
         }
 
