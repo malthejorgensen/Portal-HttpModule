@@ -5,9 +5,9 @@
     using System.Collections.Specialized;
     using System.Web;
 
-    using Chaos.Portal;
-    using Chaos.Portal.Request;
-    using Chaos.Portal.Response;
+    using Chaos.Portal.Core;
+    using Chaos.Portal.Core.Exceptions;
+    using Chaos.Portal.Core.Request;
 
     /// <summary>
     /// The a http method strategy.
@@ -47,9 +47,9 @@
             using (var response = PortalApplication.ProcessRequest(request))
             {
                 application.Response.AppendHeader( "Access-Control-Allow-Origin", "*" );
-                application.Response.ContentType     = GetContentType(response.Header.ReturnFormat);
-                application.Response.Charset         = response.Header.Encoding.HeaderName;
-                application.Response.ContentEncoding = response.Header.Encoding;
+                application.Response.ContentType     = GetContentType(response.ReturnFormat);
+                application.Response.Charset         = response.Encoding.HeaderName;
+                application.Response.ContentEncoding = response.Encoding;
 
                 SetCompression(application);
 
@@ -116,6 +116,19 @@
             }
 
             return parameters;
+        }
+
+        protected Protocol GetProtocolVersion(string version)
+        {
+            switch(version.ToUpper())
+            {
+                case "V5":
+                    return Protocol.V5;
+                case "V6":
+                    return Protocol.V6;
+                default:
+                    throw new ProtocolVersionException(string.Format("Protocol ({0}) is not supported", version));
+            }
         }
 
         #endregion

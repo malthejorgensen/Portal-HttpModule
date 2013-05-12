@@ -2,8 +2,8 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
 {
     using System.Web;
 
-    using Chaos.Portal;
-    using Chaos.Portal.Request;
+    using Chaos.Portal.Core;
+    using Chaos.Portal.Core.Request;
 
     /// <summary>
     /// The get method strategy.
@@ -30,10 +30,11 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
         /// </returns>
         protected override IPortalRequest CreatePortalRequest(HttpRequest request)
         {
+            var version   = request.Url.Segments[request.Url.Segments.Length - 3].Trim( '/' );
             var extension = request.Url.Segments[request.Url.Segments.Length - 2].Trim( '/' );
             var action    = request.Url.Segments[request.Url.Segments.Length - 1].Trim( '/' );
 
-            return new PortalRequest(extension, action, ConvertToIDictionary(request.QueryString));
+            return new PortalRequest( GetProtocolVersion(version), extension, action, ConvertToIDictionary(request.QueryString));
         }
 
         #endregion

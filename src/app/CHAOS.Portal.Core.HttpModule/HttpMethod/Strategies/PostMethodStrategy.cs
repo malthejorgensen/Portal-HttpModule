@@ -12,8 +12,8 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
     using System.Linq;
     using System.Web;
 
-    using Chaos.Portal;
-    using Chaos.Portal.Request;
+    using Chaos.Portal.Core;
+    using Chaos.Portal.Core.Request;
 
     /// <summary>
     /// The post method strategy.
@@ -47,12 +47,13 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
         /// </returns>
         protected override IPortalRequest CreatePortalRequest(HttpRequest request)
         {
+            var version   = request.Url.Segments[request.Url.Segments.Length - 3].Trim('/');
             var extension = request.Url.Segments[request.Url.Segments.Length - 2].Trim('/');
             var action    = request.Url.Segments[request.Url.Segments.Length - 1].Trim('/');
 
             var files = request.Files.AllKeys.Select(key => request.Files[key]).Select(file => new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength)).ToList();
 
-            return new PortalRequest(extension, action, ConvertToIDictionary(request.Form), files);
+            return new PortalRequest(GetProtocolVersion(version), extension, action, ConvertToIDictionary(request.Form), files);
         }
 
         #endregion

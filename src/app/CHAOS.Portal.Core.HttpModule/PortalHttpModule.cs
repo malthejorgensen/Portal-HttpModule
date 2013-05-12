@@ -1,29 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Linq;
-using System.Reflection;
-using System.Web;
-
-using CHAOS.Portal.Core.HttpModule.HttpMethod;
-using CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies;
-using Chaos.Portal;
-using Chaos.Portal.Cache.Couchbase;
-using Chaos.Portal.Logging.Database;
-using Chaos.Portal.Logging;
-
-namespace CHAOS.Portal.Core.HttpModule
+﻿namespace CHAOS.Portal.Core.HttpModule
 {
-    using CHAOS.Extensions;
+    using System;
+    using System.Collections.Generic;
+    using System.Configuration;
+    using System.Linq;
+    using System.Reflection;
+    using System.Web;
 
-    using Chaos.Portal.Data;
-    using Chaos.Portal.Exceptions;
-    using Chaos.Portal.Indexing.View;
+    using CHAOS.Extensions;
+    using CHAOS.Portal.Core.HttpModule.HttpMethod;
+    using CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies;
+
+    using Chaos.Portal;
+    using Chaos.Portal.Core;
+    using Chaos.Portal.Core.Cache.Couchbase;
+    using Chaos.Portal.Core.Data;
+    using Chaos.Portal.Core.Exceptions;
+    using Chaos.Portal.Core.Indexing.View;
+    using Chaos.Portal.Core.Logging.Database;
+    using Chaos.Portal.Core.Module;
     using Chaos.Portal.Module;
 
     using Couchbase;
-
-    using IView = Chaos.Portal.Indexing.View.IView;
+    using Chaos.Portal.Core.Logging;
 
     public class PortalHttpModule : IHttpModule
 	{
@@ -82,7 +81,7 @@ namespace CHAOS.Portal.Core.HttpModule
                         var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
                         var cache            = new Cache(new CouchbaseClient());
                         var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
-                        var viewManager      = new ViewManager(new Dictionary<string, IView>(), cache);
+                        var viewManager = new ViewManager(new Dictionary<string, Chaos.Portal.Core.Indexing.View.IView>(), cache);
                         PortalApplication = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
 
 						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
