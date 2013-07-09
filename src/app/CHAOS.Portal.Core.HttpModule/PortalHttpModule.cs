@@ -81,11 +81,11 @@
                         var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
                         var cache            = new Cache(new CouchbaseClient());
                         var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
-                        var viewManager = new ViewManager(new Dictionary<string, Chaos.Portal.Core.Indexing.View.IView>(), cache);
-                        PortalApplication = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
+                        var viewManager      = new ViewManager(new Dictionary<string, Chaos.Portal.Core.Indexing.View.IView>(), cache);
+                        PortalApplication    = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
 
 						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-                        new PortalModule().Load(PortalApplication);
+                        PortalApplication.AddModule(new PortalModule());
                         InitializeModules(string.Format("{0}\\Modules", ServiceDirectory), PortalApplication);
 
 						context.Application["PortalApplication"] = PortalApplication;

@@ -53,7 +53,7 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
 
             var files = request.Files.AllKeys.Select(key => request.Files[key]).Select(file => new FileStream(file.InputStream, file.FileName, file.ContentType, file.ContentLength)).ToList();
 
-            return new PortalRequest(GetProtocolVersion(version), extension, action, ConvertToIDictionary(request.Form), files);
+            return new PortalRequest(GetProtocolVersion(version), extension, action, ConvertToIDictionary(request.Form), PortalApplication.PortalRepository, files);
         }
 
         #endregion

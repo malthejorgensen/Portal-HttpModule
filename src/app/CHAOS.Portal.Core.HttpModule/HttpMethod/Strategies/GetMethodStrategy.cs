@@ -34,7 +34,7 @@ namespace CHAOS.Portal.Core.HttpModule.HttpMethod.Strategies
             var extension = request.Url.Segments[request.Url.Segments.Length - 2].Trim( '/' );
             var action    = request.Url.Segments[request.Url.Segments.Length - 1].Trim( '/' );
 
-            return new PortalRequest( GetProtocolVersion(version), extension, action, ConvertToIDictionary(request.QueryString));
+            return new PortalRequest( GetProtocolVersion(version), extension, action, ConvertToIDictionary(request.QueryString), PortalApplication.PortalRepository);
         }
 
         #endregion
