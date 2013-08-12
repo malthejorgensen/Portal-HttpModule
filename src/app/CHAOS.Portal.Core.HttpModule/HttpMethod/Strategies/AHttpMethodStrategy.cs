@@ -73,10 +73,13 @@
             switch (format)
             {
                 case ReturnFormat.XML:
+                case ReturnFormat.XML2:
                     return "text/xml";
                 case ReturnFormat.JSON:
+                case ReturnFormat.JSON2:
                     return "application/json";
                 case ReturnFormat.JSONP:
+                case ReturnFormat.JSONP2:
                     return "application/javascript";
                 default:
                     throw new NotImplementedException("Unknown return format");
