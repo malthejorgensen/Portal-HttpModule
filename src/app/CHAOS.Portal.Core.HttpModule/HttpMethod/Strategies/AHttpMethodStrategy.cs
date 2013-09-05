@@ -3,6 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
+    using System.Threading.Tasks;
     using System.Web;
 
     using Chaos.Portal.Core;
@@ -40,7 +41,7 @@
         /// <param name="application">
         /// The application.
         /// </param>
-        public void ProcessRequest(HttpApplication application)
+        public async Task ProcessRequest(HttpApplication application)
         {
             var request  = CreatePortalRequest(application.Request);
 
@@ -57,7 +58,7 @@
                 using (var outputStream = application.Response.OutputStream)
                 {
                     inputStream.Position = 0;
-                    inputStream.CopyTo(outputStream);
+                    await inputStream.CopyToAsync(outputStream);
                 }
             }
         }

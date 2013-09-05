@@ -5,6 +5,7 @@
     using System.Configuration;
     using System.Linq;
     using System.Reflection;
+    using System.Threading.Tasks;
     using System.Web;
 
     using CHAOS.Extensions;
@@ -24,24 +25,22 @@
     using Couchbase;
     using Chaos.Portal.Core.Logging;
 
-    public class PortalHttpModule : IHttpModule
+    public class PortalHttpModule : HttpTaskAsyncHandler
 	{
         #region Fields
 
-        private static IDictionary<string, IHttpMethodStrategy> _httpMethodHandlers;
-
-        private static IDictionary<string, Assembly> _loadedAssemblies; 
-
-        protected string    ServiceDirectory  = ConfigurationManager.AppSettings["ServiceDirectory"];
-        protected Guid      AnonymousUserGuid = new Guid( ConfigurationManager.AppSettings["AnonymousUserGUID"] );
-        protected LogLevel? _logLevel;
+        protected static IDictionary<string, IHttpMethodStrategy> HttpMethodHandlers;
+        protected static IDictionary<string, Assembly>            LoadedAssemblies;
+        protected static string                                   ServiceDirectory  = ConfigurationManager.AppSettings["ServiceDirectory"];
+        protected static Guid                                     AnonymousUserGuid = new Guid(ConfigurationManager.AppSettings["AnonymousUserGUID"]);
+        protected static LogLevel?                                _logLevel;
 
         #endregion
         #region Properties
 
         protected static IPortalApplication PortalApplication { get; set; }
 
-        protected LogLevel LogLevel
+        protected static LogLevel LogLevel
         {
             get
             {
@@ -56,45 +55,32 @@
             }
         }
 
+        public override bool IsReusable
+        {
+            get
+            {
+                return true;
+            }
+        }
+
         #endregion
         #region Initializa
 
         static PortalHttpModule()
         {
-            _loadedAssemblies = new Dictionary<string, Assembly>();
-        }
+            LoadedAssemblies = new Dictionary<string, Assembly>();
 
-        public void Dispose()
-        {
-            //clean-up code here.
-        }
+            var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
+            var cache            = new Cache(new CouchbaseClient());
+            var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
+            var viewManager      = new ViewManager(new Dictionary<string, Chaos.Portal.Core.Indexing.View.IView>(), cache);
+            PortalApplication    = new PortalApplication(cache, viewManager, portalRepository, loggingFactory);
 
-        public void Init( HttpApplication context )
-        {
-            // REVIEW: Look into moving the loading process out of the http module
-            if( context.Application["PortalApplication"] == null )
-            {
-                lock( context.Application )
-                {
-                    if( context.Application["PortalApplication"] == null )
-                    {
-                        var portalRepository = new PortalRepository().WithConfiguration(ConfigurationManager.ConnectionStrings["PortalEntities"].ConnectionString);
-                        var cache            = new Cache(new CouchbaseClient());
-                        var loggingFactory   = new DatabaseLoggerFactory(portalRepository).WithLogLevel(LogLevel);
-                        var viewManager      = new ViewManager(new Dictionary<string, Chaos.Portal.Core.Indexing.View.IView>(), cache);
-                        PortalApplication    = new PortalApplication( cache, viewManager, portalRepository, loggingFactory );
+            AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
+            PortalApplication.AddModule(new PortalModule());
+            InitializeModules(string.Format("{0}\\Modules", ServiceDirectory), PortalApplication);
 
-						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-                        PortalApplication.AddModule(new PortalModule());
-                        InitializeModules(string.Format("{0}\\Modules", ServiceDirectory), PortalApplication);
-
-						context.Application["PortalApplication"] = PortalApplication;
-                    }
-                }
-            }
-
-			PortalApplication = (PortalApplication)context.Application["PortalApplication"];
-            _httpMethodHandlers = new Dictionary<string, IHttpMethodStrategy>
+            HttpMethodHandlers = new Dictionary<string, IHttpMethodStrategy>
                                       {
                                           {"GET",     new GetMethodStrategy(PortalApplication)},
                                           {"POST",    new PostMethodStrategy(PortalApplication)},
@@ -102,15 +88,13 @@
                                           {"DELETE",  new PostMethodStrategy(PortalApplication)},
                                           {"OPTIONS", new OptionsMethodStrategy()}
                                       };
-
-            context.BeginRequest += ContextBeginRequest;
         }
 
         private static void InitializeModules( string path, IPortalApplication application )
         {
             foreach (var assembly in System.IO.Directory.GetFiles(path, "*.dll").Select(Assembly.LoadFile))
             {
-                _loadedAssemblies.Add(assembly.FullName, assembly);
+                LoadedAssemblies.Add(assembly.FullName, assembly);
 
                 foreach (var type in GetClassesOf<IModule>(from: assembly))
                 {
@@ -123,8 +107,8 @@
 
         static Assembly CurrentDomain_AssemblyResolve( object sender, ResolveEventArgs args )
         {
-            if( _loadedAssemblies.ContainsKey( args.Name ) )
-                return _loadedAssemblies[args.Name];
+            if( LoadedAssemblies.ContainsKey( args.Name ) )
+                return LoadedAssemblies[args.Name];
 			
             throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
         }
@@ -144,25 +128,6 @@
         #endregion
         #region Business Logic
 
-        private static void ContextBeginRequest(object sender, EventArgs e)
-        {
-            try
-            {
-                using (var application = (HttpApplication) sender)
-                {
-                    if (IsOnIgnoreList(application.Request.Url)) return; // TODO: 404
-
-                    _httpMethodHandlers[application.Request.HttpMethod].ProcessRequest(application);
-
-                    application.CompleteRequest();
-                }
-            }
-            catch (Exception ex)
-            {
-                PortalApplication.Log.Fatal("ProcessRequest() - Unhandeled exception occured during", ex);
-            }
-        }
-
         /// <summary>
         /// Determine if the requested resource should be ignored
         /// </summary>
@@ -176,5 +141,27 @@
         }
 
         #endregion
-    }
+
+        #region Overrides of HttpTaskAsyncHandler
+
+        public async override Task ProcessRequestAsync(HttpContext context)
+        {
+            try
+            {
+                using (var application = context.ApplicationInstance)
+                {
+                    if (!IsOnIgnoreList(application.Request.Url)) // TODO: 404
+                    {
+                        await HttpMethodHandlers[application.Request.HttpMethod].ProcessRequest(application);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                PortalApplication.Log.Fatal("ProcessRequest() - Unhandeled exception occured during", ex);
+            }
+        }
+
+        #endregion
+	}
 }
