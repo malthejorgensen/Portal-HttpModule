@@ -9,12 +9,14 @@ using System.Web;
 using System.Xml.Linq;
 using CHAOS.Extensions;
 using CHAOS.Index.Solr;
+using CHAOS.Portal.Core.Cache.Couchbase;
 using CHAOS.Portal.Core.Module;
 using CHAOS.Portal.Core.Request;
 using CHAOS.Portal.Core.Standard;
 using CHAOS.Portal.Data.EF;
 using CHAOS.Portal.Exception;
 using CHAOS.Portal.Core.Extension;
+using Couchbase;
 
 namespace CHAOS.Portal.Core.HttpModule
 {
@@ -48,7 +50,7 @@ namespace CHAOS.Portal.Core.HttpModule
                 {
                     if( context.Application["PortalApplication"] == null )
                     {
-						PortalApplication = new PortalApplication(new Cache.Membase.Membase(), new SolrCoreManager());
+                        PortalApplication = new PortalApplication(new Cache.Couchbase.Couchbase(new CouchbaseClient()), new SolrCoreManager());
 	                    
 						AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
