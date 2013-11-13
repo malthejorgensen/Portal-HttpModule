@@ -9,6 +9,7 @@
     using Chaos.Portal.Core;
     using Chaos.Portal.Core.Exceptions;
     using Chaos.Portal.Core.Request;
+    using Chaos.Portal.Core.Response;
 
     /// <summary>
     /// The a http method strategy.
@@ -48,7 +49,7 @@
             using (var response = PortalApplication.ProcessRequest(request))
             {
                 application.Response.AppendHeader( "Access-Control-Allow-Origin", "*" );
-                application.Response.ContentType     = GetContentType(response.ReturnFormat);
+                application.Response.ContentType     = GetContentType(response);
                 application.Response.Charset         = response.Encoding.HeaderName;
                 application.Response.ContentEncoding = response.Encoding;
 
@@ -68,10 +69,12 @@
         /// </summary>
         /// <param name="format">The return format for which the mime type is returned</param>
         /// <returns>The mime type associated with the ReturnFormat</returns>
-        private static string GetContentType(ReturnFormat format)
+        private static string GetContentType(IPortalResponse response)
         {
-            // TODO: Should validate when request is received, not after it's done processing
-            switch (format)
+            if (response.ContainsHeader("Content-Type")) 
+                return response.GetHeader("Content-Type");
+
+            switch (response.ReturnFormat)
             {
                 case ReturnFormat.XML:
                 case ReturnFormat.XML2:
