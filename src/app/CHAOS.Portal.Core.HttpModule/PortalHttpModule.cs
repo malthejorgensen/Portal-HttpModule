@@ -3,6 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.Configuration;
+    using System.IO;
     using System.Linq;
     using System.Reflection;
     using System.Threading.Tasks;
@@ -109,6 +110,14 @@
         {
             if( LoadedAssemblies.ContainsKey( args.Name ) )
                 return LoadedAssemblies[args.Name];
+
+            foreach (var file in Directory.GetFiles(string.Format("{0}\\Modules", ServiceDirectory), "*.dll"))
+            {
+                var assembly = Assembly.LoadFile(file);
+
+                if (args.Name.Equals(assembly.FullName))
+                    return assembly;
+            }
 			
             throw new AssemblyNotLoadedException( string.Format( "The assembly {0} is not loaded", args.Name ));
         }
